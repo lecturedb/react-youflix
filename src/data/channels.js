@@ -5,6 +5,7 @@ export const CATEGORIES = Object.freeze(['음악', '영화', '코딩', '뉴스',
 /**
  * 앱의 기본 채널 형식: { id, name, category, imageUrl? }.
  * 영상 목록과 최신 통계는 이 목록에 넣지 않고 이후 API 조회 결과로 관리한다.
+ * 저장 목록이 없을 때 사용할 시작 데이터다. 현재 목록에 자동으로 합치지 않는다.
  */
 export const initialChannels = Object.freeze(
   sourceChannels.map(({ chI, chN, cate, imgUrl }) => Object.freeze({
@@ -15,11 +16,11 @@ export const initialChannels = Object.freeze(
   })),
 )
 
-/** 초기 채널 우선. 사용자 목록 내부 중복도 먼저 등장한 ID를 유지한다. */
-export function mergeChannels(userChannels = []) {
+/** 출처 구분 없이 현재 목록을 우선하고, 새로운 ID만 입력 순서대로 끝에 추가한다. */
+export function mergeChannels(currentChannels = [], additionalChannels = []) {
   const seenIds = new Set()
 
-  return [...initialChannels, ...userChannels].filter(({ id }) => {
+  return [...currentChannels, ...additionalChannels].filter(({ id }) => {
     if (seenIds.has(id)) return false
     seenIds.add(id)
     return true
@@ -34,4 +35,4 @@ export function groupChannelsByCategory(channels) {
   }))
 }
 
-export const initialChannelGroups = groupChannelsByCategory(mergeChannels())
+export const initialChannelGroups = groupChannelsByCategory(mergeChannels(initialChannels))
