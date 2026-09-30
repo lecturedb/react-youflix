@@ -8,11 +8,20 @@ import './App.css'
 
 function App() {
   const [channelState] = useState(restoreCurrentChannels)
+  const [activeCategory, setActiveCategory] = useState('ALL')
   const channelGroups = groupChannelsByCategory(channelState.channels)
+
+  const handleCategorySelect = (category) => {
+    setActiveCategory(category)
+  }
 
   return (
     <div className="app-shell">
-      <AppHeader categories={CATEGORIES} />
+      <AppHeader
+        categories={CATEGORIES}
+        activeCategory={activeCategory}
+        onCategorySelect={handleCategorySelect}
+      />
 
       <main className="main-content">
         {channelState.error && (
@@ -28,6 +37,7 @@ function App() {
               key={category}
               category={category}
               channels={channels}
+              isVisible={activeCategory === 'ALL' || activeCategory === category}
             />
           ))}
         </div>
