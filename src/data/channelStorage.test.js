@@ -10,6 +10,7 @@ import {
 
 function createStorage(initialValue = null) {
   let value = initialValue
+  let writes = 0
 
   return {
     getItem(key) {
@@ -19,14 +20,18 @@ function createStorage(initialValue = null) {
     setItem(key, nextValue) {
       assert.equal(key, CHANNELS_STORAGE_KEY)
       value = nextValue
+      writes += 1
     },
     peek() {
       return value
     },
+    writeCount() {
+      return writes
+    },
   }
 }
 
-test('저장값이 없을 때만 초기 목록으로 시작한다', () => {
+test('저장값이 없는 첫 실행은 초기 목록을 현재 목록으로 저장하고 사용한다', () => {
   const storage = createStorage()
   const result = restoreCurrentChannels({ storage })
 
@@ -34,25 +39,46 @@ test('저장값이 없을 때만 초기 목록으로 시작한다', () => {
   assert.equal(result.source, 'initial')
   assert.deepEqual(result.channels, initialChannels)
   assert.notEqual(result.channels, initialChannels)
-  assert.equal(storage.peek(), null)
+  assert.deepEqual(JSON.parse(storage.peek()), initialChannels)
+  assert.equal(storage.writeCount(), 1)
 })
 
 test('저장된 빈 배열과 수정·삭제·순서를 그대로 복원하고 초기 데이터를 합치지 않는다', () => {
-  const emptyResult = restoreCurrentChannels({ storage: createStorage('[]') })
+  const emptyStorage = createStorage('[]')
+  const emptyResult = restoreCurrentChannels({ storage: emptyStorage })
   assert.equal(emptyResult.source, 'storage')
   assert.deepEqual(emptyResult.channels, [])
+  assert.equal(emptyStorage.writeCount(), 0)
 
   const edited = [
     { ...initialChannels[4], name: '수정된 채널', category: '엔터' },
     initialChannels[1],
   ]
-  const result = restoreCurrentChannels({ storage: createStorage(JSON.stringify(edited)) })
+  const editedStorage = createStorage(JSON.stringify(edited))
+  const result = restoreCurrentChannels({ storage: editedStorage })
 
   assert.equal(result.ok, true)
   assert.equal(result.source, 'storage')
   assert.deepEqual(result.channels, edited)
   assert.equal(result.channels.length, 2)
   assert.ok(!result.channels.some(channel => channel.id === initialChannels[0].id))
+  assert.equal(editedStorage.writeCount(), 0)
+})
+
+test('첫 실행의 초기 목록 저장 실패를 알리면서 화면에서 사용할 초기 목록은 유지한다', () => {
+  const result = restoreCurrentChannels({
+    storage: {
+      getItem: () => null,
+      setItem() {
+        throw new Error('quota exceeded')
+      },
+    },
+  })
+
+  assert.equal(result.ok, false)
+  assert.equal(result.source, 'initial')
+  assert.equal(result.error.code, 'WRITE_FAILED')
+  assert.deepEqual(result.channels, initialChannels)
 })
 
 test('현재 목록 전체를 저장한 뒤 빈 목록까지 재접속 시 복원한다', () => {

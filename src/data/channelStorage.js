@@ -94,7 +94,8 @@ function failureResult(code, currentChannels, cause, details) {
 
 /**
  * 저장된 목록을 복원한다.
- * 저장값이 없을 때만 초기 목록을 사용하며, 읽기 실패나 손상 데이터는 기존 정상 목록을 유지한다.
+ * 저장값이 없을 때만 초기 목록을 현재 목록으로 저장해 사용한다.
+ * 읽기 실패나 손상 데이터는 저장값 없음으로 취급하지 않고 기존 정상 목록을 유지한다.
  */
 export function restoreCurrentChannels({ storage, currentChannels = [] } = {}) {
   let localStorage
@@ -114,10 +115,23 @@ export function restoreCurrentChannels({ storage, currentChannels = [] } = {}) {
   }
 
   if (storedValue === null) {
+    const initialCurrentChannels = copyList(initialChannels)
+
+    try {
+      localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(initialCurrentChannels))
+    } catch (error) {
+      return {
+        ok: false,
+        source: 'initial',
+        channels: initialCurrentChannels,
+        error: createError('WRITE_FAILED', error),
+      }
+    }
+
     return {
       ok: true,
       source: 'initial',
-      channels: copyList(initialChannels),
+      channels: initialCurrentChannels,
       error: null,
     }
   }
