@@ -41,6 +41,45 @@ export function formatDuration(value) {
   return parts.join(' ')
 }
 
+function getPlaybackState(videoId, details) {
+  if (!videoId) {
+    return {
+      isPlayable: false,
+      unavailableMessage: '영상 ID를 확인할 수 없어 재생할 수 없습니다.',
+    }
+  }
+
+  if (!details) {
+    return {
+      isPlayable: false,
+      unavailableMessage: '삭제되었거나 비공개로 전환된 영상입니다.',
+    }
+  }
+
+  if (details.status?.privacyStatus === 'private') {
+    return {
+      isPlayable: false,
+      unavailableMessage: '비공개 영상이라 재생할 수 없습니다.',
+    }
+  }
+
+  if (details.status?.embeddable === false) {
+    return {
+      isPlayable: false,
+      unavailableMessage: '소유자 설정으로 이 앱에서 재생할 수 없습니다.',
+    }
+  }
+
+  if (['deleted', 'failed', 'rejected'].includes(details.status?.uploadStatus)) {
+    return {
+      isPlayable: false,
+      unavailableMessage: '삭제되었거나 재생이 제한된 영상입니다.',
+    }
+  }
+
+  return { isPlayable: true }
+}
+
 export function buildMockChannelDetail({
   channelResponse = chResponse,
   uploads = uploadsResponse,
@@ -52,20 +91,23 @@ export function buildMockChannelDetail({
   const description = channelSnippet.description?.trim()
 
   const videos = (uploads.items ?? []).map((upload, index) => {
-    const details = videoDetails[index]?.items?.[0] ?? {}
+    const details = videoDetails[index]?.items?.[0]
     const snippet = upload.snippet ?? {}
+    const videoId = snippet.resourceId?.videoId
 
     return {
-      id: snippet.resourceId?.videoId ?? `mock-video-${index}`,
+      id: videoId ?? `mock-video-${index}`,
+      youtubeVideoId: videoId,
       title: snippet.title ?? '제목 정보 없음',
       publishedAt: snippet.publishedAt,
       thumbnailUrl: snippet.thumbnails?.medium?.url,
-      duration: details.contentDetails?.duration,
+      duration: details?.contentDetails?.duration,
       statistics: {
-        views: details.statistics?.viewCount,
-        likes: details.statistics?.likeCount,
-        comments: details.statistics?.commentCount,
+        views: details?.statistics?.viewCount,
+        likes: details?.statistics?.likeCount,
+        comments: details?.statistics?.commentCount,
       },
+      playback: getPlaybackState(videoId, details),
     }
   }).sort((first, second) => (
     new Date(second.publishedAt ?? 0).getTime()

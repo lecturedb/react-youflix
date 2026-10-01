@@ -95,33 +95,91 @@ function ChannelSummary({ channel }) {
   )
 }
 
-function LatestVideoItem({ video, isCurrent }) {
+function YouTubePlayer({ video }) {
+  const [hasLoadError, setHasLoadError] = useState(false)
+  const youtubeUrl = video.youtubeVideoId
+    ? `https://www.youtube.com/watch?v=${encodeURIComponent(video.youtubeVideoId)}`
+    : null
+  const canEmbed = video.playback.isPlayable && !hasLoadError
+
   return (
-    <li className={`latest-video${isCurrent ? ' is-current' : ''}`} aria-current={isCurrent || undefined}>
-      <div className="latest-video__thumbnail-wrap">
-        <DetailImage
-          className="latest-video__thumbnail"
-          src={video.thumbnailUrl}
-          alt={`${video.title} 썸네일`}
-          fallbackLabel={`${video.title} 썸네일 없음`}
+    <div className="detail-player">
+      {canEmbed ? (
+        <iframe
+          className="detail-player__iframe"
+          src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(video.youtubeVideoId)}?rel=0&playsinline=1`}
+          title={`${video.title} YouTube 플레이어`}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allowFullScreen
+          onError={() => setHasLoadError(true)}
         />
-        <span className="latest-video__duration">{formatDuration(video.duration)}</span>
-      </div>
-      <div className="latest-video__content">
-        <div className="latest-video__heading">
-          <h3>{video.title}</h3>
-          {isCurrent && <span>현재 대표 영상</span>}
+      ) : (
+        <div className="detail-player__unavailable" role="status">
+          <strong>이 영상을 재생할 수 없습니다.</strong>
+          <p>
+            {hasLoadError
+              ? '플레이어를 불러오지 못했습니다. 다른 영상을 선택해 주세요.'
+              : video.playback.unavailableMessage}
+          </p>
         </div>
-        <MetadataList video={video} />
-      </div>
+      )}
+
+      {youtubeUrl && !canEmbed && (
+        <a
+          className="detail-player__external-link"
+          href={youtubeUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          YouTube에서 열기
+        </a>
+      )}
+    </div>
+  )
+}
+
+function LatestVideoItem({ video, isCurrent, onSelect }) {
+  return (
+    <li className={`latest-video${isCurrent ? ' is-current' : ''}`}>
+      <button
+        type="button"
+        className="latest-video__select"
+        aria-label={`${video.title}${isCurrent ? ', 현재 대표 영상' : ', 대표 영상으로 선택'}`}
+        aria-current={isCurrent || undefined}
+        onClick={() => onSelect(video)}
+      >
+        <div className="latest-video__thumbnail-wrap">
+          <DetailImage
+            className="latest-video__thumbnail"
+            src={video.thumbnailUrl}
+            alt=""
+            fallbackLabel={`${video.title} 썸네일 없음`}
+          />
+          <span className="latest-video__duration">{formatDuration(video.duration)}</span>
+        </div>
+        <div className="latest-video__content">
+          <div className="latest-video__heading">
+            <h3>{video.title}</h3>
+            {isCurrent && <span>현재 대표 영상</span>}
+          </div>
+          <MetadataList video={video} />
+        </div>
+      </button>
     </li>
   )
 }
 
 function ChannelDetailModal({ channel: selectedChannel, onClose }) {
-  const { channel, featuredVideo, videos } = mockChannelDetail
+  const { channel, videos } = mockChannelDetail
+  const [selectedVideoId, setSelectedVideoId] = useState(() => videos[0]?.id ?? null)
+  const featuredVideo = videos.find(video => video.id === selectedVideoId) ?? videos[0] ?? null
   const titleId = `channel-detail-${selectedChannel.id}-title`
   const descriptionId = `channel-detail-${selectedChannel.id}-description`
+
+  const handleVideoSelect = (video) => {
+    setSelectedVideoId(video.id)
+  }
 
   return (
     <Modal
@@ -149,14 +207,8 @@ function ChannelDetailModal({ channel: selectedChannel, onClose }) {
       {featuredVideo ? (
         <div className="channel-detail-content">
           <section className="detail-featured" aria-labelledby="featured-video-title">
-            <div className="detail-featured__preview" aria-label={`${featuredVideo.title} 대표 영상 미리보기`}>
-              <DetailImage
-                className="detail-featured__image"
-                src={featuredVideo.thumbnailUrl}
-                alt=""
-                fallbackLabel={`${featuredVideo.title} 대표 영상 이미지 없음`}
-              />
-              <span className="detail-featured__badge">대표 영상</span>
+            <div className="detail-player-stage">
+              <YouTubePlayer key={featuredVideo.id} video={featuredVideo} />
             </div>
 
             <div className="detail-information">
@@ -180,6 +232,7 @@ function ChannelDetailModal({ channel: selectedChannel, onClose }) {
                   key={video.id}
                   video={video}
                   isCurrent={video.id === featuredVideo.id}
+                  onSelect={handleVideoSelect}
                 />
               ))}
             </ol>
@@ -190,7 +243,7 @@ function ChannelDetailModal({ channel: selectedChannel, onClose }) {
       )}
 
       <p className="visually-hidden" id={descriptionId}>
-        {channel.name} 채널의 대표 영상, 채널 정보와 최신 동영상 목록
+        {channel.name} 채널의 재생 가능한 대표 영상, 채널 정보와 선택 가능한 최신 동영상 목록
       </p>
     </Modal>
   )

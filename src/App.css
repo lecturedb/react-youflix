@@ -482,10 +482,19 @@
   background: #ffffff;
 }
 
-.detail-featured__preview {
-  position: relative;
+.detail-player-stage {
   width: 100%;
   aspect-ratio: 16 / 9;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #090b0a;
+}
+
+.detail-player {
+  position: relative;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -493,24 +502,43 @@
   background: #090b0a;
 }
 
-.detail-featured__image,
 .latest-video__thumbnail {
   width: 100%;
   height: 100%;
   display: block;
 }
 
-.detail-featured__image {
-  object-fit: contain;
+.detail-player__iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .latest-video__thumbnail {
   object-fit: cover;
 }
 
-.detail-featured__badge {
+.detail-player__unavailable {
+  max-width: 500px;
+  padding: 28px;
+  text-align: center;
+}
+
+.detail-player__unavailable strong {
+  display: block;
+  font-size: 1.08rem;
+}
+
+.detail-player__unavailable p {
+  margin: 8px 0 0;
+  color: #cbd2cc;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.detail-player__external-link {
   position: absolute;
-  left: 18px;
+  right: 16px;
   bottom: 16px;
   padding: 7px 10px;
   border: 1px solid rgba(255, 255, 255, 0.36);
@@ -519,6 +547,16 @@
   background: rgba(10, 18, 13, 0.78);
   font-size: 0.78rem;
   font-weight: 800;
+  text-decoration: none;
+}
+
+.detail-player__external-link:hover {
+  background: rgba(36, 122, 71, 0.94);
+}
+
+.detail-player__external-link:focus-visible {
+  outline: 3px solid #f4c95d;
+  outline-offset: 3px;
 }
 
 .detail-image-fallback {
@@ -676,13 +714,33 @@
 
 .latest-video {
   min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e1e5e2;
+  border-radius: 10px;
+  background: #f8f9f8;
+}
+
+.latest-video__select {
+  width: 100%;
   padding: 10px;
   display: grid;
   grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
   gap: 16px;
-  border: 1px solid #e1e5e2;
-  border-radius: 10px;
-  background: #f8f9f8;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
+  text-align: left;
+}
+
+.latest-video__select:hover {
+  background: #f0f4f1;
+}
+
+.latest-video__select:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid #f4c95d;
+  outline-offset: -3px;
 }
 
 .latest-video.is-current {
@@ -763,7 +821,7 @@
   white-space: nowrap;
 }
 
-@media (min-width: 1120px) and (min-height: 850px) {
+@media (min-width: 1120px) {
   .channel-detail-modal {
     width: min(1280px, calc(100vw - 48px));
     height: min(840px, calc(100dvh - 48px));
@@ -784,22 +842,27 @@
     min-height: 0;
     flex: 1 1 auto;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-columns: minmax(0, 1fr) 240px;
     overflow: hidden;
   }
 
   .detail-featured {
     min-width: 0;
     min-height: 0;
-    overflow: hidden;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
   }
 
-  .detail-featured__preview {
+  .detail-player-stage {
     height: auto;
-    min-height: 0;
     aspect-ratio: 16 / 9;
+  }
+
+  .detail-player {
+    width: 100%;
+    max-width: none;
+    aspect-ratio: auto;
   }
 
   .detail-information {
@@ -857,15 +920,21 @@
     padding-right: 4px;
     flex: 1 1 auto;
     overflow-y: auto;
+    grid-auto-rows: max-content;
+    align-content: start;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
   }
 
   .latest-video {
     position: relative;
-    padding: 6px;
     display: block;
     border-radius: 8px;
+  }
+
+  .latest-video__select {
+    padding: 6px;
+    display: block;
   }
 
   .latest-video.is-current::after {
@@ -1044,7 +1113,7 @@
     border-left: 0;
   }
 
-  .latest-video {
+  .latest-video__select {
     grid-template-columns: minmax(145px, 42%) minmax(0, 1fr);
     gap: 12px;
   }
@@ -1065,8 +1134,8 @@
 }
 
 @media (max-width: 480px) {
-  .detail-featured__badge {
-    left: 12px;
+  .detail-player__external-link {
+    right: 12px;
     bottom: 10px;
   }
 
@@ -1083,7 +1152,7 @@
     padding: 18px 14px 22px;
   }
 
-  .latest-video {
+  .latest-video__select {
     padding: 8px;
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;

@@ -14,6 +14,8 @@ test('Mock API 응답을 채널과 최신순 영상 목록으로 결합한다', 
   assert.equal(mockChannelDetail.videos.length, 6)
   assert.equal(mockChannelDetail.featuredVideo.id, 'VldX34mM95o')
   assert.equal(mockChannelDetail.featuredVideo.duration, 'PT48M11S')
+  assert.equal(mockChannelDetail.featuredVideo.youtubeVideoId, 'VldX34mM95o')
+  assert.deepEqual(mockChannelDetail.featuredVideo.playback, { isPlayable: true })
   assert.deepEqual(mockChannelDetail.featuredVideo.statistics, {
     views: '959',
     likes: '38',
@@ -66,4 +68,30 @@ test('설명이 없거나 통계 일부가 누락된 응답도 임의의 값으�
     isPrivate: detail.channel.statistics.subscribersHidden,
   }), '비공개')
   assert.equal(formatStatistic(detail.videos[0].statistics.likes), '정보 없음')
+})
+
+test('삭제·비공개·임베드 제한 영상을 재생 불가 상태로 구분한다', () => {
+  const uploads = {
+    items: [
+      { snippet: { title: '삭제된 영상', resourceId: { videoId: 'deleted' } } },
+      { snippet: { title: '비공개 영상', resourceId: { videoId: 'private' } } },
+      { snippet: { title: '임베드 제한 영상', resourceId: { videoId: 'restricted' } } },
+      { snippet: { title: 'ID 없는 영상' } },
+    ],
+  }
+  const detail = buildMockChannelDetail({
+    uploads,
+    videoDetails: [
+      { items: [] },
+      { items: [{ status: { privacyStatus: 'private' } }] },
+      { items: [{ status: { embeddable: false } }] },
+      { items: [{}] },
+    ],
+  })
+
+  assert.equal(detail.videos[0].playback.isPlayable, false)
+  assert.match(detail.videos[0].playback.unavailableMessage, /삭제/)
+  assert.match(detail.videos[1].playback.unavailableMessage, /비공개/)
+  assert.match(detail.videos[2].playback.unavailableMessage, /소유자 설정/)
+  assert.match(detail.videos[3].playback.unavailableMessage, /영상 ID/)
 })
