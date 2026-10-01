@@ -421,8 +421,8 @@
 }
 
 .channel-detail-modal {
-  width: min(860px, calc(100vw - 48px));
-  height: min(900px, calc(100dvh - 64px));
+  width: min(960px, calc(100vw - 48px));
+  height: 80dvh;
 }
 
 .channel-detail-modal__header {
@@ -498,6 +498,13 @@
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.detail-featured__image {
+  object-fit: contain;
+}
+
+.latest-video__thumbnail {
   object-fit: cover;
 }
 
@@ -756,6 +763,133 @@
   white-space: nowrap;
 }
 
+@media (min-width: 1120px) and (min-height: 680px) {
+  .channel-detail-modal {
+    width: min(1280px, calc(100vw - 48px));
+    height: min(840px, calc(100dvh - 48px));
+  }
+
+  .channel-detail-modal .modal__surface {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .channel-detail-modal__header {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  .channel-detail-content {
+    min-height: 0;
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    overflow: hidden;
+  }
+
+  .detail-featured {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .detail-featured__preview {
+    height: 100%;
+    min-height: 0;
+    aspect-ratio: auto;
+  }
+
+  .detail-information {
+    padding: 18px 20px;
+    gap: 20px;
+    border-top: 1px solid var(--line);
+  }
+
+  .detail-video-summary h3 {
+    font-size: 1.05rem;
+  }
+
+  .detail-metadata,
+  .detail-channel-statistics {
+    margin-top: 10px;
+    gap: 5px 12px;
+  }
+
+  .detail-channel-summary {
+    padding-left: 20px;
+  }
+
+  .detail-channel-summary__image {
+    width: 50px;
+    height: 50px;
+  }
+
+  .detail-channel-summary__description {
+    margin-top: 10px;
+    -webkit-line-clamp: 2;
+  }
+
+  .latest-videos {
+    min-width: 0;
+    min-height: 0;
+    padding: 17px 14px 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-top: 0;
+    border-left: 1px solid var(--line);
+  }
+
+  .latest-videos__header {
+    margin-bottom: 12px;
+    flex: 0 0 auto;
+  }
+
+  .latest-videos__header h2 {
+    font-size: 1.08rem;
+  }
+
+  .latest-videos__list {
+    min-height: 0;
+    padding-right: 4px;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .latest-video {
+    position: relative;
+    padding: 6px;
+    display: block;
+    border-radius: 8px;
+  }
+
+  .latest-video.is-current::after {
+    content: "현재";
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    padding: 4px 7px;
+    border-radius: 999px;
+    color: #ffffff;
+    background: var(--brand-green);
+    font-size: 0.67rem;
+    font-weight: 800;
+  }
+
+  .latest-video__content {
+    display: none;
+  }
+
+  .latest-video__thumbnail-wrap {
+    border-radius: 6px;
+  }
+}
+
 @media (max-width: 720px) {
   .app-header__inner {
     padding: 10px 16px 8px;
@@ -872,7 +1006,7 @@
 
   .channel-detail-modal {
     width: calc(100vw - 24px);
-    height: calc(100dvh - 24px);
+    height: 80dvh;
   }
 
   .channel-detail-modal__header {

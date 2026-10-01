@@ -102,7 +102,7 @@ function LatestVideoItem({ video, isCurrent }) {
         <DetailImage
           className="latest-video__thumbnail"
           src={video.thumbnailUrl}
-          alt=""
+          alt={`${video.title} 썸네일`}
           fallbackLabel={`${video.title} 썸네일 없음`}
         />
         <span className="latest-video__duration">{formatDuration(video.duration)}</span>
