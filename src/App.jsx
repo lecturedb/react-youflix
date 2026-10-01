@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import AppFooter from './components/AppFooter.jsx'
 import AppHeader from './components/AppHeader.jsx'
+import ChannelDetailModal from './components/ChannelDetailModal.jsx'
 import ChannelSection from './components/ChannelSection.jsx'
 import { restoreCurrentChannels } from './data/channelStorage.js'
 import { CATEGORIES, groupChannelsByCategory } from './data/channels.js'
@@ -9,10 +10,26 @@ import './App.css'
 function App() {
   const [channelState] = useState(restoreCurrentChannels)
   const [activeCategory, setActiveCategory] = useState('ALL')
+  const [selectedChannel, setSelectedChannel] = useState(null)
+  const detailTriggerRef = useRef(null)
   const channelGroups = groupChannelsByCategory(channelState.channels)
 
   const handleCategorySelect = (category) => {
     setActiveCategory(category)
+  }
+
+  const handleChannelSelect = (channel, triggerElement) => {
+    detailTriggerRef.current = triggerElement
+    setSelectedChannel(channel)
+  }
+
+  const handleDetailClose = () => {
+    const returnTarget = detailTriggerRef.current
+    setSelectedChannel(null)
+
+    window.requestAnimationFrame(() => {
+      if (returnTarget?.isConnected) returnTarget.focus()
+    })
   }
 
   return (
@@ -38,12 +55,20 @@ function App() {
               category={category}
               channels={channels}
               isVisible={activeCategory === 'ALL' || activeCategory === category}
+              onChannelSelect={handleChannelSelect}
             />
           ))}
         </div>
       </main>
 
       <AppFooter />
+
+      {selectedChannel && (
+        <ChannelDetailModal
+          channel={selectedChannel}
+          onClose={handleDetailClose}
+        />
+      )}
     </div>
   )
 }

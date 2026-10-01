@@ -35,7 +35,7 @@ function ArrowIcon({ direction }) {
   )
 }
 
-function ChannelSection({ category, channels, isVisible }) {
+function ChannelSection({ category, channels, isVisible, onChannelSelect }) {
   const sectionId = `category-${category}`
   const trackId = `${sectionId}-track`
   const hasChannels = channels.length > 0
@@ -188,7 +188,11 @@ function ChannelSection({ category, channels, isVisible }) {
             onScroll={updateScrollState}
           >
             {channels.map((channel) => (
-              <ChannelCard key={channel.id} channel={channel} />
+              <ChannelCard
+                key={channel.id}
+                channel={channel}
+                onSelect={onChannelSelect}
+              />
             ))}
           </div>
 

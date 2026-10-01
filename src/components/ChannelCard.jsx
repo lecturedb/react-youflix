@@ -16,7 +16,7 @@ function DeleteIcon() {
   )
 }
 
-function ChannelCard({ channel }) {
+function ChannelCard({ channel, onSelect }) {
   const [failedImageUrl, setFailedImageUrl] = useState(null)
   const initial = Array.from(channel.name.trim())[0] || '?'
   const showImage = channel.imageUrl && failedImageUrl !== channel.imageUrl
@@ -28,6 +28,7 @@ function ChannelCard({ channel }) {
         type="button"
         aria-label={`${channel.name} 채널 상세 보기`}
         title={channel.name}
+        onClick={(event) => onSelect(channel, event.currentTarget)}
       >
         <span className="channel-card__image-wrap">
           {showImage ? (
@@ -56,6 +57,7 @@ function ChannelCard({ channel }) {
           className="channel-card__action channel-card__action--edit"
           aria-label={`${channel.name} 채널 수정`}
           title={`${channel.name} 채널 수정`}
+          onClick={(event) => event.stopPropagation()}
         >
           <EditIcon />
         </button>
@@ -64,6 +66,7 @@ function ChannelCard({ channel }) {
           className="channel-card__action channel-card__action--delete"
           aria-label={`${channel.name} 채널 삭제`}
           title={`${channel.name} 채널 삭제`}
+          onClick={(event) => event.stopPropagation()}
         >
           <DeleteIcon />
         </button>
