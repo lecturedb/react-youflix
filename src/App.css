@@ -763,7 +763,7 @@
   white-space: nowrap;
 }
 
-@media (min-width: 1120px) and (min-height: 680px) {
+@media (min-width: 1120px) and (min-height: 850px) {
   .channel-detail-modal {
     width: min(1280px, calc(100vw - 48px));
     height: min(840px, calc(100dvh - 48px));
@@ -793,13 +793,13 @@
     min-height: 0;
     overflow: hidden;
     display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .detail-featured__preview {
-    height: 100%;
+    height: auto;
     min-height: 0;
-    aspect-ratio: auto;
+    aspect-ratio: 16 / 9;
   }
 
   .detail-information {
