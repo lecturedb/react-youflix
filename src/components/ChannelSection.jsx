@@ -35,7 +35,7 @@ function ArrowIcon({ direction }) {
   )
 }
 
-function ChannelSection({ category, channels, isVisible, onChannelSelect }) {
+function ChannelSection({ category, channels, isVisible, onChannelSelect, onAddChannel }) {
   const sectionId = `category-${category}`
   const trackId = `${sectionId}-track`
   const hasChannels = channels.length > 0
@@ -213,7 +213,9 @@ function ChannelSection({ category, channels, isVisible, onChannelSelect }) {
             <strong>등록된 채널이 없습니다.</strong>
             <p>{category} 카테고리에 좋아하는 채널을 추가해 보세요.</p>
           </div>
-          <button type="button">채널 추가</button>
+          <button type="button" onClick={(event) => onAddChannel(event.currentTarget)}>
+            채널 추가
+          </button>
         </div>
       )}
     </section>

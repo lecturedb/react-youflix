@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import AppFooter from './components/AppFooter.jsx'
 import AppHeader from './components/AppHeader.jsx'
 import ChannelDetailModal from './components/ChannelDetailModal.jsx'
+import ChannelSaveModal from './components/ChannelSaveModal.jsx'
 import ChannelSection from './components/ChannelSection.jsx'
 import { restoreCurrentChannels } from './data/channelStorage.js'
 import { CATEGORIES, groupChannelsByCategory } from './data/channels.js'
@@ -11,7 +12,9 @@ function App() {
   const [channelState] = useState(restoreCurrentChannels)
   const [activeCategory, setActiveCategory] = useState('ALL')
   const [selectedChannel, setSelectedChannel] = useState(null)
+  const [isChannelSaveOpen, setIsChannelSaveOpen] = useState(false)
   const detailTriggerRef = useRef(null)
+  const channelSaveTriggerRef = useRef(null)
   const channelGroups = groupChannelsByCategory(channelState.channels)
 
   const handleCategorySelect = (category) => {
@@ -32,12 +35,27 @@ function App() {
     })
   }
 
+  const handleChannelSaveOpen = (triggerElement) => {
+    channelSaveTriggerRef.current = triggerElement
+    setIsChannelSaveOpen(true)
+  }
+
+  const handleChannelSaveClose = () => {
+    const returnTarget = channelSaveTriggerRef.current
+    setIsChannelSaveOpen(false)
+
+    window.requestAnimationFrame(() => {
+      if (returnTarget?.isConnected) returnTarget.focus()
+    })
+  }
+
   return (
     <div className="app-shell">
       <AppHeader
         categories={CATEGORIES}
         activeCategory={activeCategory}
         onCategorySelect={handleCategorySelect}
+        onAddChannel={handleChannelSaveOpen}
       />
 
       <main className="main-content">
@@ -56,6 +74,7 @@ function App() {
               channels={channels}
               isVisible={activeCategory === 'ALL' || activeCategory === category}
               onChannelSelect={handleChannelSelect}
+              onAddChannel={handleChannelSaveOpen}
             />
           ))}
         </div>
@@ -68,6 +87,10 @@ function App() {
           channel={selectedChannel}
           onClose={handleDetailClose}
         />
+      )}
+
+      {isChannelSaveOpen && (
+        <ChannelSaveModal onClose={handleChannelSaveClose} />
       )}
     </div>
   )

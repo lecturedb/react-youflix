@@ -1,6 +1,6 @@
 const ALL_LABEL = 'ALL'
 
-function AppHeader({ categories, activeCategory, onCategorySelect }) {
+function AppHeader({ categories, activeCategory, onCategorySelect, onAddChannel }) {
   return (
     <header className="app-header">
       <div className="app-header__inner">
@@ -30,7 +30,11 @@ function AppHeader({ categories, activeCategory, onCategorySelect }) {
           </ul>
         </nav>
 
-        <button className="add-channel-button" type="button">
+        <button
+          className="add-channel-button"
+          type="button"
+          onClick={(event) => onAddChannel(event.currentTarget)}
+        >
           <span aria-hidden="true">＋</span>
           채널 추가
         </button>
