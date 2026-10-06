@@ -14,7 +14,7 @@ function CloseIcon() {
   )
 }
 
-function ChannelSaveModal({ onClose }) {
+function ChannelSaveModal({ onApiKeySaved, onClose }) {
   const [apiKey, setApiKey] = useState('')
   const [apiKeyState, setApiKeyState] = useState(() => {
     const { ok, hasKey, error } = restoreApiKey()
@@ -33,6 +33,7 @@ function ChannelSaveModal({ onClose }) {
         error: null,
         message: 'API 키를 브라우저에 저장했습니다. API 인증 여부는 아직 확인하지 않았습니다.',
       })
+      onApiKeySaved?.()
       return
     }
 

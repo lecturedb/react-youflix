@@ -13,6 +13,7 @@ function App() {
   const [activeCategory, setActiveCategory] = useState('ALL')
   const [selectedChannel, setSelectedChannel] = useState(null)
   const [isChannelSaveOpen, setIsChannelSaveOpen] = useState(false)
+  const [apiKeyRevision, setApiKeyRevision] = useState(0)
   const detailTriggerRef = useRef(null)
   const channelSaveTriggerRef = useRef(null)
   const channelGroups = groupChannelsByCategory(channelState.channels)
@@ -42,11 +43,22 @@ function App() {
 
   const handleChannelSaveClose = () => {
     const returnTarget = channelSaveTriggerRef.current
+    const detailFallbackTarget = document.querySelector(
+      '.channel-detail-modal .modal__close-button',
+    )
     setIsChannelSaveOpen(false)
 
     window.requestAnimationFrame(() => {
-      if (returnTarget?.isConnected) returnTarget.focus()
+      if (returnTarget?.isConnected) {
+        returnTarget.focus()
+      } else if (detailFallbackTarget?.isConnected) {
+        detailFallbackTarget.focus()
+      }
     })
+  }
+
+  const handleApiKeySaved = () => {
+    setApiKeyRevision(currentRevision => currentRevision + 1)
   }
 
   return (
@@ -85,12 +97,17 @@ function App() {
       {selectedChannel && (
         <ChannelDetailModal
           channel={selectedChannel}
+          apiKeyRevision={apiKeyRevision}
           onClose={handleDetailClose}
+          onOpenApiSettings={handleChannelSaveOpen}
         />
       )}
 
       {isChannelSaveOpen && (
-        <ChannelSaveModal onClose={handleChannelSaveClose} />
+        <ChannelSaveModal
+          onApiKeySaved={handleApiKeySaved}
+          onClose={handleChannelSaveClose}
+        />
       )}
     </div>
   )

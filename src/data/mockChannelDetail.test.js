@@ -1,12 +1,63 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  buildMockChannelDetail,
+  buildChannelDetail,
   formatDuration,
   formatPublishedAt,
   formatStatistic,
+} from './channelDetail.js'
+import {
+  buildMockChannelDetail,
   mockChannelDetail,
 } from './mockChannelDetail.js'
+
+test('실제 API의 채널·업로드·영상 응답을 ID 기준으로 결합하고 최신순으로 정렬한다', () => {
+  const detail = buildChannelDetail({
+    channel: {
+      id: 'channel-1',
+      snippet: {
+        title: '실제 채널',
+        thumbnails: { high: { url: 'channel-high.jpg' } },
+      },
+      statistics: { viewCount: '100', videoCount: '2' },
+    },
+    playlistItems: [
+      {
+        contentDetails: { videoId: 'older', videoPublishedAt: '2025-01-01T00:00:00Z' },
+        snippet: { title: '이전 제목' },
+      },
+      {
+        contentDetails: { videoId: 'newer', videoPublishedAt: '2025-02-01T00:00:00Z' },
+        snippet: { title: '최신 제목' },
+      },
+    ],
+    videoDetails: [
+      {
+        id: 'newer',
+        snippet: {
+          title: '최신 상세 제목',
+          thumbnails: { maxres: { url: 'newer.jpg' } },
+        },
+        contentDetails: { duration: 'PT2M' },
+        statistics: { viewCount: '20' },
+        status: { embeddable: true },
+      },
+      {
+        id: 'older',
+        contentDetails: { duration: 'PT1M' },
+        statistics: { viewCount: '10' },
+        status: { embeddable: true },
+      },
+    ],
+  })
+
+  assert.equal(detail.channel.name, '실제 채널')
+  assert.equal(detail.channel.imageUrl, 'channel-high.jpg')
+  assert.equal(detail.featuredVideo.id, 'newer')
+  assert.equal(detail.featuredVideo.title, '최신 상세 제목')
+  assert.equal(detail.featuredVideo.thumbnailUrl, 'newer.jpg')
+  assert.equal(detail.videos[1].id, 'older')
+})
 
 test('Mock API 응답을 채널과 최신순 영상 목록으로 결합한다', () => {
   assert.equal(mockChannelDetail.channel.id, 'UC_x5XG1OV2P6uZZ5FSM9Ttw')

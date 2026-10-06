@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  buildChannelDetail,
   formatDuration,
   formatPublishedAt,
   formatStatistic,
-  mockChannelDetail,
-} from '../data/mockChannelDetail.js'
+} from '../data/channelDetail.js'
+import { getLatestChannelVideos } from '../data/youtubeApi.js'
 import Modal from './Modal.jsx'
 
 function CloseIcon() {
@@ -170,15 +171,228 @@ function LatestVideoItem({ video, isCurrent, onSelect }) {
   )
 }
 
-function ChannelDetailModal({ channel: selectedChannel, onClose }) {
-  const { channel, videos } = mockChannelDetail
-  const [selectedVideoId, setSelectedVideoId] = useState(() => videos[0]?.id ?? null)
+function DetailStatus({ error, isLoading = false, onRetry, onOpenApiSettings, compact = false }) {
+  const needsApiKey = ['OPEN_API_KEY_SETTINGS', 'EDIT_API_KEY'].includes(error?.action)
+
+  return (
+    <div
+      className={`detail-request-state${compact ? ' detail-request-state--compact' : ''}`}
+      role={error ? 'alert' : 'status'}
+    >
+      {isLoading && <span className="detail-loading-indicator" aria-hidden="true" />}
+      <div>
+        <strong>{isLoading ? '채널 정보를 불러오는 중입니다.' : error?.message}</strong>
+        {!isLoading && (
+          <p>저장된 채널은 변경하거나 삭제하지 않습니다.</p>
+        )}
+      </div>
+      {!isLoading && (
+        <div className="detail-request-state__actions">
+          {needsApiKey && (
+            <button
+              type="button"
+              onClick={(event) => onOpenApiSettings(event.currentTarget)}
+            >
+              API 키 {error.action === 'EDIT_API_KEY' ? '수정' : '입력'}
+            </button>
+          )}
+          {error?.retryable && (
+            <button type="button" onClick={onRetry}>다시 시도</button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ChannelDetailModal({
+  channel: selectedChannel,
+  apiKeyRevision,
+  onClose,
+  onOpenApiSettings,
+}) {
+  const [detailState, setDetailState] = useState({
+    status: 'loading',
+    channelId: selectedChannel.id,
+    detail: null,
+    error: null,
+    partialErrors: {},
+  })
+  const [selectedVideoId, setSelectedVideoId] = useState(null)
+  const requestNumberRef = useRef(0)
+  const abortControllerRef = useRef(null)
+  const detail = detailState.channelId === selectedChannel.id ? detailState.detail : null
+  const channel = detail?.channel
+  const videos = detail?.videos ?? []
   const featuredVideo = videos.find(video => video.id === selectedVideoId) ?? videos[0] ?? null
+  const displayedChannelName = channel?.name ?? selectedChannel.name
   const titleId = `channel-detail-${selectedChannel.id}-title`
   const descriptionId = `channel-detail-${selectedChannel.id}-description`
 
+  const loadChannelDetail = useCallback(async (forceRefresh = false) => {
+    const requestNumber = requestNumberRef.current + 1
+    const controller = new AbortController()
+    requestNumberRef.current = requestNumber
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = controller
+
+    await Promise.resolve()
+    if (requestNumberRef.current !== requestNumber) return
+
+    setDetailState((currentState) => ({
+      status: 'loading',
+      channelId: selectedChannel.id,
+      detail: currentState.channelId === selectedChannel.id ? currentState.detail : null,
+      error: null,
+      partialErrors: currentState.channelId === selectedChannel.id
+        ? currentState.partialErrors
+        : {},
+    }))
+
+    try {
+      const result = await getLatestChannelVideos(selectedChannel.id, {
+        signal: controller.signal,
+        forceRefresh,
+      })
+
+      if (requestNumberRef.current !== requestNumber) return
+
+      if (!result.channel) {
+        setDetailState({
+          status: 'not-found',
+          channelId: selectedChannel.id,
+          detail: null,
+          error: null,
+          partialErrors: {},
+        })
+        setSelectedVideoId(null)
+        return
+      }
+
+      const nextDetail = buildChannelDetail({
+        channel: result.channel,
+        playlistItems: result.playlistItems,
+        videoDetails: result.videos,
+      })
+
+      setDetailState({
+        status: 'success',
+        channelId: selectedChannel.id,
+        detail: nextDetail,
+        error: null,
+        partialErrors: result.errors,
+      })
+      setSelectedVideoId((currentId) => (
+        nextDetail.videos.some(video => video.id === currentId)
+          ? currentId
+          : nextDetail.featuredVideo?.id ?? null
+      ))
+    } catch (error) {
+      if (
+        requestNumberRef.current !== requestNumber
+        || error?.code === 'ABORTED'
+      ) return
+
+      setDetailState((currentState) => ({
+        status: 'error',
+        channelId: selectedChannel.id,
+        detail: currentState.channelId === selectedChannel.id
+          ? currentState.detail
+          : null,
+        error,
+        partialErrors: currentState.channelId === selectedChannel.id
+          ? currentState.partialErrors
+          : {},
+      }))
+    }
+  }, [selectedChannel.id])
+
+  useEffect(() => {
+    const loadTimeout = window.setTimeout(() => {
+      loadChannelDetail()
+    }, 0)
+
+    return () => {
+      window.clearTimeout(loadTimeout)
+      abortControllerRef.current?.abort()
+    }
+  }, [apiKeyRevision, loadChannelDetail])
+
   const handleVideoSelect = (video) => {
     setSelectedVideoId(video.id)
+  }
+
+  const handleRetry = () => {
+    loadChannelDetail(true)
+  }
+
+  const renderLoadedDetail = () => {
+    const partialError = detailState.partialErrors.playlist
+      ?? detailState.partialErrors.videos
+
+    return (
+      <div className="channel-detail-content">
+        <section className="detail-featured" aria-labelledby={featuredVideo ? 'featured-video-title' : undefined}>
+          <div className="detail-player-stage">
+            {featuredVideo ? (
+              <YouTubePlayer key={featuredVideo.id} video={featuredVideo} />
+            ) : (
+              <div className="detail-player detail-player__empty" role="status">
+                <strong>최신 동영상이 없습니다.</strong>
+                <p>채널 정보는 아래에서 확인할 수 있습니다.</p>
+              </div>
+            )}
+          </div>
+
+          <div className={`detail-information${featuredVideo ? '' : ' detail-information--channel-only'}`}>
+            {featuredVideo ? (
+              <section className="detail-video-summary">
+                <p className="detail-section-label">영상 정보</p>
+                <h3 id="featured-video-title">{featuredVideo.title}</h3>
+                <MetadataList video={featuredVideo} />
+              </section>
+            ) : (
+              <section className="detail-video-summary">
+                <p className="detail-section-label">영상 정보</p>
+                <h3>표시할 최신 동영상이 없습니다.</h3>
+              </section>
+            )}
+            <ChannelSummary channel={channel} />
+          </div>
+        </section>
+
+        <section className="latest-videos" aria-labelledby="latest-videos-title">
+          <div className="latest-videos__header">
+            <h2 id="latest-videos-title">최신 동영상</h2>
+            <span>{videos.length}개</span>
+          </div>
+
+          {partialError && (
+            <DetailStatus
+              error={partialError}
+              onRetry={handleRetry}
+              onOpenApiSettings={onOpenApiSettings}
+              compact
+            />
+          )}
+
+          {videos.length > 0 ? (
+            <ol className="latest-videos__list">
+              {videos.map((video) => (
+                <LatestVideoItem
+                  key={video.id}
+                  video={video}
+                  isCurrent={video.id === featuredVideo?.id}
+                  onSelect={handleVideoSelect}
+                />
+              ))}
+            </ol>
+          ) : !partialError && (
+            <p className="latest-videos__empty">최신 동영상이 없습니다.</p>
+          )}
+        </section>
+      </div>
+    )
   }
 
   return (
@@ -191,12 +405,12 @@ function ChannelDetailModal({ channel: selectedChannel, onClose }) {
       <header className="channel-detail-modal__header">
         <div>
           <p className="channel-detail-modal__eyebrow">채널 상세</p>
-          <h2 id={titleId}>{channel.name}</h2>
+          <h2 id={titleId}>{displayedChannelName}</h2>
         </div>
         <button
           type="button"
           className="modal__close-button"
-          aria-label={`${channel.name} 채널 상세 닫기`}
+          aria-label={`${displayedChannelName} 채널 상세 닫기`}
           autoFocus
           onClick={onClose}
         >
@@ -204,46 +418,49 @@ function ChannelDetailModal({ channel: selectedChannel, onClose }) {
         </button>
       </header>
 
-      {featuredVideo ? (
-        <div className="channel-detail-content">
-          <section className="detail-featured" aria-labelledby="featured-video-title">
-            <div className="detail-player-stage">
-              <YouTubePlayer key={featuredVideo.id} video={featuredVideo} />
-            </div>
+      {detailState.status === 'loading' && !detail && (
+        <DetailStatus isLoading />
+      )}
 
-            <div className="detail-information">
-              <section className="detail-video-summary">
-                <p className="detail-section-label">영상 정보</p>
-                <h3 id="featured-video-title">{featuredVideo.title}</h3>
-                <MetadataList video={featuredVideo} />
-              </section>
-              <ChannelSummary channel={channel} />
-            </div>
-          </section>
+      {detailState.status === 'error' && !detail && (
+        <DetailStatus
+          error={detailState.error}
+          onRetry={handleRetry}
+          onOpenApiSettings={onOpenApiSettings}
+        />
+      )}
 
-          <section className="latest-videos" aria-labelledby="latest-videos-title">
-            <div className="latest-videos__header">
-              <h2 id="latest-videos-title">최신 동영상</h2>
-              <span>{videos.length}개</span>
-            </div>
-            <ol className="latest-videos__list">
-              {videos.map((video) => (
-                <LatestVideoItem
-                  key={video.id}
-                  video={video}
-                  isCurrent={video.id === featuredVideo.id}
-                  onSelect={handleVideoSelect}
-                />
-              ))}
-            </ol>
-          </section>
+      {detailState.status === 'not-found' && (
+        <div className="detail-request-state" role="alert">
+          <div>
+            <strong>채널을 찾을 수 없습니다.</strong>
+            <p>저장된 채널은 삭제하지 않았습니다. 잠시 후 다시 확인해 주세요.</p>
+          </div>
+          <div className="detail-request-state__actions">
+            <button type="button" onClick={handleRetry}>다시 시도</button>
+          </div>
         </div>
-      ) : (
-        <p className="detail-empty-state">최신 동영상이 없습니다.</p>
+      )}
+
+      {detail && (
+        <>
+          {detailState.status === 'loading' && (
+            <DetailStatus isLoading compact />
+          )}
+          {detailState.status === 'error' && (
+            <DetailStatus
+              error={detailState.error}
+              onRetry={handleRetry}
+              onOpenApiSettings={onOpenApiSettings}
+              compact
+            />
+          )}
+          {renderLoadedDetail()}
+        </>
       )}
 
       <p className="visually-hidden" id={descriptionId}>
-        {channel.name} 채널의 재생 가능한 대표 영상, 채널 정보와 선택 가능한 최신 동영상 목록
+        {displayedChannelName} 채널의 재생 가능한 대표 영상, 채널 정보와 선택 가능한 최신 동영상 목록
       </p>
     </Modal>
   )
