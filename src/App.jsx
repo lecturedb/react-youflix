@@ -228,7 +228,7 @@ function App() {
         </div>
       </main>
 
-      <AppFooter />
+      <AppFooter channels={channelState.channels} />
 
       {selectedChannel && (
         <ChannelDetailModal

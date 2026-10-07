@@ -393,6 +393,19 @@
   background: rgba(255, 255, 255, 0.24);
 }
 
+.app-footer__export-message {
+  flex-basis: 100%;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.app-footer__export-message.is-error {
+  color: #ffe0e0;
+}
+
 .modal {
   width: min(1120px, calc(100vw - 48px));
   max-width: none;
@@ -1639,6 +1652,10 @@
   .app-footer__actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .app-footer__export-message {
+    text-align: left;
   }
 
   .modal {
