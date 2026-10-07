@@ -393,7 +393,12 @@
   background: rgba(255, 255, 255, 0.24);
 }
 
-.app-footer__export-message {
+.app-footer__actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.app-footer__data-message {
   flex-basis: 100%;
   color: rgba(255, 255, 255, 0.9);
   font-size: 0.78rem;
@@ -402,7 +407,7 @@
   text-align: right;
 }
 
-.app-footer__export-message.is-error {
+.app-footer__data-message.is-error {
   color: #ffe0e0;
 }
 
@@ -1654,7 +1659,7 @@
     justify-content: flex-start;
   }
 
-  .app-footer__export-message {
+  .app-footer__data-message {
     text-align: left;
   }
 

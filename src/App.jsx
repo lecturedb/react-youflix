@@ -5,6 +5,7 @@ import ChannelDetailModal from './components/ChannelDetailModal.jsx'
 import ChannelSaveModal from './components/ChannelSaveModal.jsx'
 import ChannelManageModal from './components/ChannelManageModal.jsx'
 import ChannelSection from './components/ChannelSection.jsx'
+import { mergeChannelImport } from './data/channelImport.js'
 import { restoreCurrentChannels, saveCurrentChannels } from './data/channelStorage.js'
 import { CATEGORIES, groupChannelsByCategory } from './data/channels.js'
 import './App.css'
@@ -191,6 +192,23 @@ function App() {
     return result
   }
 
+  const handleChannelImport = (importedChannels, fileDuplicateCount) => {
+    const merged = mergeChannelImport(
+      channelState.channels,
+      importedChannels,
+      fileDuplicateCount,
+    )
+
+    if (merged.addedCount === 0) {
+      return { ok: true, ...merged }
+    }
+
+    const result = persistChannels(merged.channels)
+    return result.ok
+      ? { ok: true, ...merged }
+      : result
+  }
+
   return (
     <div className="app-shell">
       <AppHeader
@@ -228,7 +246,10 @@ function App() {
         </div>
       </main>
 
-      <AppFooter channels={channelState.channels} />
+      <AppFooter
+        channels={channelState.channels}
+        onImportChannels={handleChannelImport}
+      />
 
       {selectedChannel && (
         <ChannelDetailModal
