@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { restoreApiKey, saveApiKey } from '../data/apiKeyStorage.js'
+import { normalizeChannelSearchResults } from '../data/channelSearch.js'
 import { CATEGORIES } from '../data/channels.js'
+import { searchChannels } from '../data/youtubeApi.js'
 import Modal from './Modal.jsx'
 
 const TITLE_ID = 'channel-save-modal-title'
@@ -14,12 +16,144 @@ function CloseIcon() {
   )
 }
 
+function SearchResultImage({ result }) {
+  const [failedSource, setFailedSource] = useState(null)
+  const showImage = result.imageUrl && failedSource !== result.imageUrl
+
+  return showImage ? (
+    <img
+      src={result.imageUrl}
+      alt=""
+      onError={() => setFailedSource(result.imageUrl)}
+    />
+  ) : (
+    <span className="channel-search-result__image-fallback" aria-hidden="true">
+      {result.name.trim().charAt(0) || '?'}
+    </span>
+  )
+}
+
+function SearchResults({ state, selectedResultId, onRetry, onSelect, onFocusApiKey }) {
+  if (state.status === 'idle') {
+    return (
+      <div className="channel-search-result channel-search-result--message">
+        <div className="channel-search-result__placeholder" aria-hidden="true">?</div>
+        <div>
+          <strong>검색 결과가 여기에 표시됩니다.</strong>
+          <p>채널명 또는 @핸들을 입력해 검색해 주세요.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (state.status === 'loading') {
+    return (
+      <div className="channel-search-result channel-search-result--message" role="status">
+        <span className="channel-search-result__spinner" aria-hidden="true" />
+        <div>
+          <strong>채널을 검색하는 중입니다.</strong>
+          <p>검색 결과를 불러올 때까지 잠시 기다려 주세요.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (state.status === 'invalid') {
+    return (
+      <div className="channel-search-result channel-search-result--message is-error" role="alert">
+        <div className="channel-search-result__placeholder" aria-hidden="true">!</div>
+        <div>
+          <strong>채널명 또는 @핸들을 입력해 주세요.</strong>
+          <p>검색 요청은 전송하지 않았습니다.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (state.status === 'error') {
+    const needsApiKey = ['OPEN_API_KEY_SETTINGS', 'EDIT_API_KEY'].includes(state.error?.action)
+
+    return (
+      <div className="channel-search-result channel-search-result--message is-error" role="alert">
+        <div className="channel-search-result__placeholder" aria-hidden="true">!</div>
+        <div className="channel-search-result__message-content">
+          <strong>{state.error?.message}</strong>
+          <p>입력한 검색어를 유지했습니다. 문제를 해결한 뒤 다시 시도해 주세요.</p>
+          <div className="channel-search-result__actions">
+            {needsApiKey && (
+              <button type="button" onClick={onFocusApiKey}>API 키 입력으로 이동</button>
+            )}
+            <button type="button" onClick={onRetry}>다시 시도</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (state.results.length === 0) {
+    return (
+      <div className="channel-search-result channel-search-result--message" role="status">
+        <div className="channel-search-result__placeholder" aria-hidden="true">0</div>
+        <div>
+          <strong>검색 결과가 없습니다.</strong>
+          <p>검색어를 바꾸거나 @핸들을 확인한 뒤 다시 검색해 주세요.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <ul className="channel-search-results" aria-label={`‘${state.submittedQuery}’ 채널 검색 결과`}>
+      {state.results.map((result) => {
+        const isSelected = result.id === selectedResultId
+
+        return (
+          <li key={result.id}>
+            <button
+              type="button"
+              className={`channel-search-result-card${isSelected ? ' is-selected' : ''}`}
+              aria-pressed={isSelected}
+              onClick={() => onSelect(result.id)}
+            >
+              <SearchResultImage result={result} />
+              <span className="channel-search-result-card__content">
+                <strong>{result.name}</strong>
+                <span>채널 ID: {result.id}</span>
+              </span>
+              <span className="channel-search-result-card__selection" aria-hidden="true">
+                {isSelected ? '선택됨' : '선택'}
+              </span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 function ChannelSaveModal({ onApiKeySaved, onClose }) {
   const [apiKey, setApiKey] = useState('')
   const [apiKeyState, setApiKeyState] = useState(() => {
     const { ok, hasKey, error } = restoreApiKey()
     return { ok, hasKey, error }
   })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchState, setSearchState] = useState({
+    status: 'idle',
+    results: [],
+    error: null,
+    submittedQuery: '',
+  })
+  const [selectedResultId, setSelectedResultId] = useState(null)
+  const apiKeyInputRef = useRef(null)
+  const searchPendingRef = useRef(false)
+  const searchRequestRef = useRef(0)
+  const searchAbortControllerRef = useRef(null)
+  const selectedResult = searchState.results.find(result => result.id === selectedResultId) ?? null
+
+  useEffect(() => () => {
+    searchAbortControllerRef.current?.abort()
+  }, [])
 
   const handleApiKeySave = (event) => {
     event.preventDefault()
@@ -41,6 +175,82 @@ function ChannelSaveModal({ onApiKeySaved, onClose }) {
       ...result,
       hasKey: apiKeyState.hasKey,
     })
+  }
+
+  const runSearch = async (query, { forceRefresh = false } = {}) => {
+    if (searchPendingRef.current) return
+
+    const normalizedQuery = query.trim()
+    setSelectedResultId(null)
+
+    if (!normalizedQuery) {
+      setSearchState({
+        status: 'invalid',
+        results: [],
+        error: null,
+        submittedQuery: '',
+      })
+      return
+    }
+
+    const requestNumber = searchRequestRef.current + 1
+    const controller = new AbortController()
+    searchRequestRef.current = requestNumber
+    searchPendingRef.current = true
+    searchAbortControllerRef.current?.abort()
+    searchAbortControllerRef.current = controller
+    setSearchState({
+      status: 'loading',
+      results: [],
+      error: null,
+      submittedQuery: normalizedQuery,
+    })
+
+    try {
+      const response = await searchChannels(normalizedQuery, {
+        signal: controller.signal,
+        forceRefresh,
+      })
+      if (searchRequestRef.current !== requestNumber) return
+
+      const results = normalizeChannelSearchResults(response)
+      setSearchState({
+        status: 'success',
+        results,
+        error: null,
+        submittedQuery: normalizedQuery,
+      })
+      setSelectedResultId(results.length === 1 ? results[0].id : null)
+    } catch (error) {
+      if (
+        searchRequestRef.current !== requestNumber
+        || error?.code === 'ABORTED'
+      ) return
+
+      setSearchState({
+        status: 'error',
+        results: [],
+        error,
+        submittedQuery: normalizedQuery,
+      })
+    } finally {
+      if (searchRequestRef.current === requestNumber) {
+        searchPendingRef.current = false
+      }
+    }
+  }
+
+  const handleSearch = (event) => {
+    event.preventDefault()
+    runSearch(searchQuery)
+  }
+
+  const handleSearchRetry = () => {
+    runSearch(searchState.submittedQuery, { forceRefresh: true })
+  }
+
+  const handleFocusApiKey = () => {
+    apiKeyInputRef.current?.focus()
   }
 
   return (
@@ -76,6 +286,7 @@ function ChannelSaveModal({ onApiKeySaved, onClose }) {
           <form className="channel-save-row" onSubmit={handleApiKeySave}>
             <label className="visually-hidden" htmlFor="youtube-api-key">YouTube API 키</label>
             <input
+              ref={apiKeyInputRef}
               id="youtube-api-key"
               type="password"
               value={apiKey}
@@ -110,22 +321,29 @@ function ChannelSaveModal({ onApiKeySaved, onClose }) {
             <p>채널명 또는 @핸들로 저장할 채널을 찾습니다.</p>
           </div>
 
-          <div className="channel-save-row">
+          <form className="channel-save-row" onSubmit={handleSearch}>
             <label className="visually-hidden" htmlFor="channel-search-query">채널명 또는 핸들</label>
             <input
               id="channel-search-query"
               type="search"
+              value={searchQuery}
               placeholder="채널명 또는 @핸들"
+              disabled={searchState.status === 'loading'}
+              onChange={(event) => setSearchQuery(event.target.value)}
             />
-            <button type="button" disabled>채널 ID 찾기</button>
-          </div>
+            <button type="submit" disabled={searchState.status === 'loading'}>
+              {searchState.status === 'loading' ? '검색 중' : '채널 ID 찾기'}
+            </button>
+          </form>
 
-          <div className="channel-search-result" aria-live="polite">
-            <div className="channel-search-result__placeholder" aria-hidden="true">?</div>
-            <div>
-              <strong>검색 결과가 여기에 표시됩니다.</strong>
-              <p>채널 검색은 API 요청 연결 후 사용할 수 있습니다.</p>
-            </div>
+          <div className="channel-search-results-wrap" aria-live="polite" aria-busy={searchState.status === 'loading'}>
+            <SearchResults
+              state={searchState}
+              selectedResultId={selectedResultId}
+              onRetry={handleSearchRetry}
+              onSelect={setSelectedResultId}
+              onFocusApiKey={handleFocusApiKey}
+            />
           </div>
         </section>
 
@@ -145,6 +363,11 @@ function ChannelSaveModal({ onApiKeySaved, onClose }) {
               ))}
             </select>
           </div>
+          <p className="channel-save-target" role="status">
+            {selectedResult
+              ? `선택한 저장 대상: ${selectedResult.name} (${selectedResult.id})`
+              : '검색 결과에서 저장할 채널을 선택해 주세요.'}
+          </p>
         </section>
       </div>
 
