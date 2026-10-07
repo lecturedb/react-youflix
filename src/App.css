@@ -483,6 +483,17 @@
   max-height: calc(100dvh - 64px);
 }
 
+.channel-manage-modal {
+  width: min(560px, calc(100vw - 48px));
+  height: fit-content;
+  max-height: calc(100dvh - 64px);
+}
+
+.channel-manage-modal .modal__surface {
+  height: auto;
+  max-height: inherit;
+}
+
 .channel-save-modal .modal__surface {
   height: auto;
   max-height: inherit;
@@ -822,6 +833,100 @@
   font-weight: 650;
   line-height: 1.45;
   overflow-wrap: anywhere;
+}
+
+.channel-manage-form,
+.channel-delete-confirmation {
+  padding: 24px 28px 28px;
+}
+
+.channel-manage-form {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px 12px;
+}
+
+.channel-manage-form label {
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.channel-manage-form input,
+.channel-manage-form select {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #aeb8b0;
+  border-radius: 7px;
+  color: var(--text);
+  background: #ffffff;
+}
+
+.channel-manage-form input[readonly] {
+  color: var(--text-muted);
+  background: #f1f3f1;
+}
+
+.channel-manage-form .channel-save-message,
+.channel-manage-form .channel-manage-actions {
+  grid-column: 1 / -1;
+}
+
+.channel-delete-confirmation > p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.channel-delete-confirmation > p:first-child {
+  margin-bottom: 6px;
+  color: var(--text);
+  font-size: 1.02rem;
+}
+
+.channel-manage-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.channel-manage-actions button {
+  min-height: 42px;
+  padding: 9px 15px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.channel-manage-actions .secondary-button {
+  color: var(--text);
+  background: #e7ebe8;
+}
+
+.channel-manage-actions .primary-button {
+  color: #ffffff;
+  background: var(--brand-green);
+}
+
+.channel-manage-actions .danger-button {
+  color: #ffffff;
+  background: #b95055;
+}
+
+.channel-manage-actions .secondary-button:hover {
+  background: #d9dfda;
+}
+
+.channel-manage-actions .primary-button:hover {
+  background: var(--brand-green-dark);
+}
+
+.channel-manage-actions .danger-button:hover {
+  background: #973d42;
 }
 
 .channel-detail-content {
@@ -1548,6 +1653,12 @@
     max-height: calc(100dvh - 24px);
   }
 
+  .channel-manage-modal {
+    width: calc(100vw - 24px);
+    height: fit-content;
+    max-height: calc(100dvh - 24px);
+  }
+
   .channel-save-modal__header {
     min-height: 68px;
     padding: 12px 12px 11px 18px;
@@ -1645,6 +1756,28 @@
   .channel-save-row button,
   .channel-save-row select {
     flex: 1 1 auto;
+  }
+
+  .channel-manage-form {
+    padding-right: 18px;
+    padding-left: 18px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  .channel-manage-form input,
+  .channel-manage-form select {
+    margin-bottom: 7px;
+  }
+
+  .channel-manage-form .channel-save-message,
+  .channel-manage-form .channel-manage-actions {
+    grid-column: 1;
+  }
+
+  .channel-delete-confirmation {
+    padding-right: 20px;
+    padding-left: 20px;
   }
 
   .detail-player__external-link {

@@ -35,7 +35,15 @@ function ArrowIcon({ direction }) {
   )
 }
 
-function ChannelSection({ category, channels, isVisible, onChannelSelect, onAddChannel }) {
+function ChannelSection({
+  category,
+  channels,
+  isVisible,
+  onChannelSelect,
+  onAddChannel,
+  onEditChannel,
+  onDeleteChannel,
+}) {
   const sectionId = `category-${category}`
   const trackId = `${sectionId}-track`
   const hasChannels = channels.length > 0
@@ -192,6 +200,8 @@ function ChannelSection({ category, channels, isVisible, onChannelSelect, onAddC
                 key={channel.id}
                 channel={channel}
                 onSelect={onChannelSelect}
+                onEdit={onEditChannel}
+                onDelete={onDeleteChannel}
               />
             ))}
           </div>

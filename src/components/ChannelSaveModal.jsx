@@ -131,7 +131,7 @@ function SearchResults({ state, selectedResultId, onRetry, onSelect, onFocusApiK
   )
 }
 
-function ChannelSaveModal({ onApiKeySaved, onClose }) {
+function ChannelSaveModal({ onApiKeySaved, onSaveChannel, onClose }) {
   const [apiKey, setApiKey] = useState('')
   const [apiKeyState, setApiKeyState] = useState(() => {
     const { ok, hasKey, error } = restoreApiKey()
@@ -145,6 +145,8 @@ function ChannelSaveModal({ onApiKeySaved, onClose }) {
     submittedQuery: '',
   })
   const [selectedResultId, setSelectedResultId] = useState(null)
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [channelSaveError, setChannelSaveError] = useState(null)
   const apiKeyInputRef = useRef(null)
   const searchPendingRef = useRef(false)
   const searchRequestRef = useRef(0)
@@ -182,6 +184,7 @@ function ChannelSaveModal({ onApiKeySaved, onClose }) {
 
     const normalizedQuery = query.trim()
     setSelectedResultId(null)
+    setChannelSaveError(null)
 
     if (!normalizedQuery) {
       setSearchState({
@@ -251,6 +254,23 @@ function ChannelSaveModal({ onApiKeySaved, onClose }) {
 
   const handleFocusApiKey = () => {
     apiKeyInputRef.current?.focus()
+  }
+
+  const handleChannelSave = (event) => {
+    event.preventDefault()
+
+    if (!selectedResult) {
+      setChannelSaveError({ message: '검색 결과에서 저장할 채널을 선택해 주세요.' })
+      return
+    }
+
+    if (!selectedCategory) {
+      setChannelSaveError({ message: '채널을 저장할 카테고리를 선택해 주세요.' })
+      return
+    }
+
+    const result = onSaveChannel(selectedResult, selectedCategory)
+    if (!result.ok) setChannelSaveError(result.error)
   }
 
   return (
@@ -341,7 +361,10 @@ function ChannelSaveModal({ onApiKeySaved, onClose }) {
               state={searchState}
               selectedResultId={selectedResultId}
               onRetry={handleSearchRetry}
-              onSelect={setSelectedResultId}
+              onSelect={(resultId) => {
+                setSelectedResultId(resultId)
+                setChannelSaveError(null)
+              }}
               onFocusApiKey={handleFocusApiKey}
             />
           </div>
@@ -353,21 +376,33 @@ function ChannelSaveModal({ onApiKeySaved, onClose }) {
             <p>검색 결과와 카테고리를 선택해 채널 목록에 저장합니다.</p>
           </div>
 
-          <div className="channel-save-row channel-save-row--submit">
-            <button type="button" disabled>이 채널 저장하기</button>
+          <form className="channel-save-row channel-save-row--submit" onSubmit={handleChannelSave}>
+            <button type="submit">이 채널 저장하기</button>
             <label className="visually-hidden" htmlFor="channel-category">카테고리</label>
-            <select id="channel-category" defaultValue="">
+            <select
+              id="channel-category"
+              value={selectedCategory}
+              onChange={(event) => {
+                setSelectedCategory(event.target.value)
+                setChannelSaveError(null)
+              }}
+            >
               <option value="" disabled>카테고리 선택</option>
               {CATEGORIES.map((category) => (
                 <option key={category} value={category}>{category}</option>
               ))}
             </select>
-          </div>
+          </form>
           <p className="channel-save-target" role="status">
             {selectedResult
               ? `선택한 저장 대상: ${selectedResult.name} (${selectedResult.id})`
               : '검색 결과에서 저장할 채널을 선택해 주세요.'}
           </p>
+          {channelSaveError && (
+            <p className="channel-save-message is-error" role="alert">
+              {channelSaveError.message}
+            </p>
+          )}
         </section>
       </div>
 
