@@ -1,0 +1,111 @@
+name: Deploy versioned GitHub Pages
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v6
+
+      - name: Prepare Pages history
+        id: version
+        env:
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        shell: bash
+        run: |
+          if git fetch origin gh-pages:refs/heads/gh-pages; then
+            git worktree add pages gh-pages
+          else
+            git worktree add --detach pages
+            git -C pages switch --orphan gh-pages
+          fi
+
+          latest=0
+          for directory in pages/v*; do
+            if [[ -d "$directory" ]]; then
+              number="${directory##*/v}"
+              if [[ "$number" =~ ^[0-9]+$ ]] && (( number > latest )); then
+                latest="$number"
+              fi
+            fi
+          done
+
+          version="v$((latest + 1))"
+          base_path="$PAGES_BASE_PATH/$version/"
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "base_path=$base_path" >> "$GITHUB_OUTPUT"
+
+      - name: Build version
+        env:
+          VITE_BASE_PATH: ${{ steps.version.outputs.base_path }}
+        run: npm run build
+
+      - name: Add version to Pages history
+        env:
+          DEPLOY_VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          mkdir -p "pages/$DEPLOY_VERSION"
+          cp -a dist/. "pages/$DEPLOY_VERSION/"
+          touch pages/.nojekyll
+
+          printf '%s\n' \
+            '<!doctype html>' \
+            '<html lang="ko">' \
+            '  <head>' \
+            '    <meta charset="UTF-8">' \
+            '    <meta name="viewport" content="width=device-width, initial-scale=1.0">' \
+            "    <meta http-equiv=\"refresh\" content=\"0; url=./$DEPLOY_VERSION/\">" \
+            "    <title>Youflix $DEPLOY_VERSION</title>" \
+            '  </head>' \
+            "  <body><a href=\"./$DEPLOY_VERSION/\">최신 Youflix 버전으로 이동</a></body>" \
+            '</html>' > pages/index.html
+
+          git -C pages config user.name github-actions[bot]
+          git -C pages config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C pages add .
+          git -C pages commit -m "Deploy $DEPLOY_VERSION from ${GITHUB_SHA::7}"
+          git -C pages push --set-upstream origin gh-pages
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: pages
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
