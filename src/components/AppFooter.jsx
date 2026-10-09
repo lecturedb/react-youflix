@@ -39,7 +39,7 @@ function AppFooter({ channels, onImportChannels }) {
       return
     }
 
-    const result = onImportChannels(parsed.channels, parsed.duplicateCount)
+    const result = await onImportChannels(parsed.channels, parsed.duplicateCount)
 
     if (!result.ok) {
       setDataState({

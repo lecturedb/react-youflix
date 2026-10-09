@@ -30,8 +30,9 @@ function ChannelManageModal({ mode, channel, onSave, onDelete, onClose }) {
   const [category, setCategory] = useState(channel.category)
   const [imageUrl, setImageUrl] = useState(channel.imageUrl ?? '')
   const [error, setError] = useState(null)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const handleEditSubmit = (event) => {
+  const handleEditSubmit = async (event) => {
     event.preventDefault()
     const normalizedName = name.trim()
     const normalizedImageUrl = imageUrl.trim()
@@ -51,19 +52,31 @@ function ChannelManageModal({ mode, channel, onSave, onDelete, onClose }) {
       return
     }
 
-    const result = onSave({
-      id: channel.id,
-      name: normalizedName,
-      category,
-      ...(normalizedImageUrl ? { imageUrl: normalizedImageUrl } : {}),
-    })
+    setIsSaving(true)
+    setError(null)
+    try {
+      const result = await onSave({
+        id: channel.id,
+        name: normalizedName,
+        category,
+        ...(normalizedImageUrl ? { imageUrl: normalizedImageUrl } : {}),
+      })
 
-    if (!result.ok) setError(result.error)
+      if (!result.ok) setError(result.error)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const handleDelete = () => {
-    const result = onDelete()
-    if (!result.ok) setError(result.error)
+  const handleDelete = async () => {
+    setIsSaving(true)
+    setError(null)
+    try {
+      const result = await onDelete()
+      if (!result.ok) setError(result.error)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -123,8 +136,10 @@ function ChannelManageModal({ mode, channel, onSave, onDelete, onClose }) {
           {error && <p className="channel-save-message is-error" role="alert">{error.message}</p>}
 
           <div className="channel-manage-actions">
-            <button type="button" className="secondary-button" onClick={onClose}>취소</button>
-            <button type="submit" className="primary-button">변경 저장</button>
+            <button type="button" className="secondary-button" disabled={isSaving} onClick={onClose}>취소</button>
+            <button type="submit" className="primary-button" disabled={isSaving}>
+              {isSaving ? 'Drive에 저장 중' : '변경 저장'}
+            </button>
           </div>
         </form>
       ) : (
@@ -133,8 +148,10 @@ function ChannelManageModal({ mode, channel, onSave, onDelete, onClose }) {
           <p>삭제 후에도 같은 채널을 검색해 다시 추가할 수 있습니다.</p>
           {error && <p className="channel-save-message is-error" role="alert">{error.message}</p>}
           <div className="channel-manage-actions">
-            <button type="button" className="secondary-button" autoFocus onClick={onClose}>취소</button>
-            <button type="button" className="danger-button" onClick={handleDelete}>삭제</button>
+            <button type="button" className="secondary-button" disabled={isSaving} autoFocus onClick={onClose}>취소</button>
+            <button type="button" className="danger-button" disabled={isSaving} onClick={handleDelete}>
+              {isSaving ? 'Drive에서 삭제 중' : '삭제'}
+            </button>
           </div>
         </div>
       )}

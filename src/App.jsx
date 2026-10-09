@@ -5,13 +5,51 @@ import ChannelDetailModal from './components/ChannelDetailModal.jsx'
 import ChannelSaveModal from './components/ChannelSaveModal.jsx'
 import ChannelManageModal from './components/ChannelManageModal.jsx'
 import ChannelSection from './components/ChannelSection.jsx'
+import { downloadDriveChannels, uploadDriveChannels } from './data/channelDriveSync.js'
 import { mergeChannelImport } from './data/channelImport.js'
 import { restoreCurrentChannels, saveCurrentChannels } from './data/channelStorage.js'
 import { CATEGORIES, groupChannelsByCategory } from './data/channels.js'
+import {
+  clearGoogleDriveAccessToken,
+  getGoogleDriveAccessToken,
+  getGoogleDriveConfig,
+  isGoogleDriveConfigured,
+} from './data/googleDriveAuth.js'
 import './App.css'
+
+const driveConfig = getGoogleDriveConfig()
+
+function operationError(code, message) {
+  const error = new Error(message)
+  error.code = code
+  return error
+}
+
+function syncFailureResult(error, channels) {
+  return {
+    ok: false,
+    source: 'current',
+    channels,
+    error: {
+      code: error?.code || 'DRIVE_SYNC_FAILED',
+      message: error?.message || 'Google Drive 동기화에 실패했습니다.',
+      ...(error?.details ? { details: error.details } : {}),
+      ...(error ? { cause: error } : {}),
+    },
+  }
+}
 
 function App() {
   const [channelState, setChannelState] = useState(restoreCurrentChannels)
+  const [syncState, setSyncState] = useState(() => (
+    isGoogleDriveConfigured(driveConfig)
+      ? { status: 'idle', message: '' }
+      : {
+          status: 'error',
+          message: 'Google Drive 동기화 설정이 없습니다. 환경변수를 확인해 주세요.',
+          configured: false,
+        }
+  ))
   const [activeCategory, setActiveCategory] = useState('ALL')
   const [selectedChannel, setSelectedChannel] = useState(null)
   const [isChannelSaveOpen, setIsChannelSaveOpen] = useState(false)
@@ -20,7 +58,56 @@ function App() {
   const [apiKeyRevision, setApiKeyRevision] = useState(0)
   const detailTriggerRef = useRef(null)
   const channelSaveTriggerRef = useRef(null)
+  const startupSyncStartedRef = useRef(false)
+  const syncPendingRef = useRef(false)
   const channelGroups = groupChannelsByCategory(channelState.channels)
+
+  const replaceChannelsFromDrive = async ({ interactive }) => {
+    if (syncPendingRef.current) {
+      return syncFailureResult(
+        operationError('SYNC_IN_PROGRESS', 'Google Drive 동기화가 진행 중입니다. 잠시 후 다시 시도해 주세요.'),
+        channelState.channels,
+      )
+    }
+
+    syncPendingRef.current = true
+    setSyncState({ status: 'syncing', message: 'Google Drive에서 최신 채널 목록을 불러오는 중입니다.' })
+
+    try {
+      const accessToken = await getGoogleDriveAccessToken({ interactive, config: driveConfig })
+      const channels = await downloadDriveChannels({
+        accessToken,
+        fileId: driveConfig.fileId,
+      })
+      const localResult = saveCurrentChannels(channels, {
+        currentChannels: channelState.channels,
+      })
+
+      if (!localResult.ok) {
+        setSyncState({ status: 'error', message: localResult.error.message })
+        return localResult
+      }
+
+      setChannelState(localResult)
+      setSyncState({ status: 'idle', message: '' })
+      return localResult
+    } catch (error) {
+      if (error?.code === 'DRIVE_AUTH_EXPIRED') clearGoogleDriveAccessToken()
+      const result = syncFailureResult(error, channelState.channels)
+      setSyncState({ status: 'error', message: result.error.message })
+      return result
+    } finally {
+      syncPendingRef.current = false
+    }
+  }
+
+  useEffect(() => {
+    if (startupSyncStartedRef.current || !isGoogleDriveConfigured(driveConfig)) return
+    startupSyncStartedRef.current = true
+    replaceChannelsFromDrive({ interactive: false })
+  // 앱 시작 시 한 번만 실행하며 실패해도 현재 로컬 목록을 유지한다.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!focusRequest) return undefined
@@ -90,38 +177,87 @@ function App() {
     setApiKeyRevision(currentRevision => currentRevision + 1)
   }
 
-  const persistChannels = (nextChannels) => {
-    const result = saveCurrentChannels(nextChannels, {
-      currentChannels: channelState.channels,
-    })
-
-    if (result.ok) {
-      setChannelState(result)
+  const persistChannels = async (createNextChannels) => {
+    if (syncPendingRef.current) {
+      return syncFailureResult(
+        operationError('SYNC_IN_PROGRESS', 'Google Drive 동기화가 진행 중입니다. 잠시 후 다시 시도해 주세요.'),
+        channelState.channels,
+      )
     }
 
-    return result
+    syncPendingRef.current = true
+    setSyncState({ status: 'syncing', message: '채널 변경 사항을 Google Drive에 저장하는 중입니다.' })
+
+    let remoteChannels
+    let accessToken
+
+    try {
+      accessToken = await getGoogleDriveAccessToken({ interactive: true, config: driveConfig })
+      remoteChannels = await downloadDriveChannels({
+        accessToken,
+        fileId: driveConfig.fileId,
+      })
+      const nextChannels = createNextChannels(remoteChannels)
+
+      await uploadDriveChannels(nextChannels, {
+        accessToken,
+        fileId: driveConfig.fileId,
+      })
+
+      const localResult = saveCurrentChannels(nextChannels, {
+        currentChannels: channelState.channels,
+      })
+
+      if (!localResult.ok) {
+        try {
+          await uploadDriveChannels(remoteChannels, {
+            accessToken,
+            fileId: driveConfig.fileId,
+          })
+        } catch {
+          const rollbackError = operationError(
+            'LOCAL_WRITE_FAILED_AFTER_DRIVE_WRITE',
+            '브라우저 저장에 실패했고 Drive 변경도 되돌리지 못했습니다. 다시 동기화해 주세요.',
+          )
+          const result = syncFailureResult(rollbackError, channelState.channels)
+          setSyncState({ status: 'error', message: result.error.message })
+          return result
+        }
+
+        setSyncState({ status: 'error', message: localResult.error.message })
+        return localResult
+      }
+
+      setChannelState(localResult)
+      setSyncState({ status: 'idle', message: '' })
+      return localResult
+    } catch (error) {
+      if (error?.code === 'DRIVE_AUTH_EXPIRED') clearGoogleDriveAccessToken()
+      const result = syncFailureResult(error, channelState.channels)
+      setSyncState({ status: 'error', message: result.error.message })
+      return result
+    } finally {
+      syncPendingRef.current = false
+    }
   }
 
-  const handleChannelAdd = (selectedResult, category) => {
-    const duplicate = channelState.channels.find(channel => channel.id === selectedResult.id)
-
-    if (duplicate) {
-      return {
-        ok: false,
-        error: {
-          code: 'DUPLICATE_CHANNEL',
-          message: `이미 ${duplicate.category} 카테고리에 등록된 채널입니다.`,
-        },
-      }
-    }
-
+  const handleChannelAdd = async (selectedResult, category) => {
     const addedChannel = {
       id: selectedResult.id,
       name: selectedResult.name,
       category,
       ...(selectedResult.imageUrl ? { imageUrl: selectedResult.imageUrl } : {}),
     }
-    const result = persistChannels([...channelState.channels, addedChannel])
+    const result = await persistChannels((latestChannels) => {
+      const duplicate = latestChannels.find(channel => channel.id === selectedResult.id)
+      if (duplicate) {
+        throw operationError(
+          'DUPLICATE_CHANNEL',
+          `이미 ${duplicate.category} 카테고리에 등록된 채널입니다.`,
+        )
+      }
+      return [...latestChannels, addedChannel]
+    })
 
     if (result.ok) {
       setActiveCategory(category)
@@ -147,18 +283,26 @@ function App() {
     })
   }
 
-  const handleChannelUpdate = (updatedChannel) => {
+  const handleChannelUpdate = async (updatedChannel) => {
     const original = channelManagement.channel
-    const sameCategory = original.category === updatedChannel.category
-    const nextChannels = sameCategory
-      ? channelState.channels.map(channel => (
-          channel.id === original.id ? updatedChannel : channel
-        ))
-      : [
-          ...channelState.channels.filter(channel => channel.id !== original.id),
-          updatedChannel,
-        ]
-    const result = persistChannels(nextChannels)
+    const result = await persistChannels((latestChannels) => {
+      const latestChannel = latestChannels.find(channel => channel.id === original.id)
+      if (!latestChannel) {
+        throw operationError(
+          'CHANNEL_REMOVED_REMOTELY',
+          '이 채널은 다른 기기에서 이미 삭제되었습니다. 최신 목록을 유지합니다.',
+        )
+      }
+
+      return latestChannel.category === updatedChannel.category
+        ? latestChannels.map(channel => (
+            channel.id === original.id ? updatedChannel : channel
+          ))
+        : [
+            ...latestChannels.filter(channel => channel.id !== original.id),
+            updatedChannel,
+          ]
+    })
 
     if (result.ok) {
       setChannelManagement(null)
@@ -169,7 +313,7 @@ function App() {
     return result
   }
 
-  const handleChannelDelete = () => {
+  const handleChannelDelete = async () => {
     const target = channelManagement.channel
     const categoryChannels = channelGroups
       .find(group => group.category === target.category)?.channels ?? []
@@ -178,8 +322,8 @@ function App() {
     const nextFocusChannel = remainingCategoryChannels[
       Math.min(targetIndex, remainingCategoryChannels.length - 1)
     ]
-    const result = persistChannels(
-      channelState.channels.filter(channel => channel.id !== target.id),
+    const result = await persistChannels(
+      latestChannels => latestChannels.filter(channel => channel.id !== target.id),
     )
 
     if (result.ok) {
@@ -192,18 +336,16 @@ function App() {
     return result
   }
 
-  const handleChannelImport = (importedChannels, fileDuplicateCount) => {
-    const merged = mergeChannelImport(
-      channelState.channels,
-      importedChannels,
-      fileDuplicateCount,
-    )
-
-    if (merged.addedCount === 0) {
-      return { ok: true, ...merged }
-    }
-
-    const result = persistChannels(merged.channels)
+  const handleChannelImport = async (importedChannels, fileDuplicateCount) => {
+    let merged
+    const result = await persistChannels((latestChannels) => {
+      merged = mergeChannelImport(
+        latestChannels,
+        importedChannels,
+        fileDuplicateCount,
+      )
+      return merged.channels
+    })
     return result.ok
       ? { ok: true, ...merged }
       : result
@@ -223,6 +365,26 @@ function App() {
           <div className="storage-notice" role="alert">
             <strong>채널 목록을 복원하지 못했습니다.</strong>
             <span>{channelState.error.message}</span>
+          </div>
+        )}
+
+        {syncState.status !== 'idle' && (
+          <div
+            className={`storage-notice drive-sync-notice is-${syncState.status}`}
+            role={syncState.status === 'error' ? 'alert' : 'status'}
+          >
+            <strong>{syncState.status === 'syncing'
+              ? 'Google Drive 동기화 중'
+              : 'Google Drive 동기화 실패'}</strong>
+            <span>{syncState.message}</span>
+            {syncState.status === 'error' && syncState.configured !== false && (
+              <button
+                type="button"
+                onClick={() => replaceChannelsFromDrive({ interactive: true })}
+              >
+                Drive 동기화 다시 시도
+              </button>
+            )}
           </div>
         )}
 

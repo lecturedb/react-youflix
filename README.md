@@ -1,16 +1,41 @@
-# React + Vite
+# Youflix
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+YouTube 채널을 카테고리별로 저장하고 탐색하는 Vite + React 앱입니다. 채널 목록은 브라우저 로컬스토리지와 Google Drive JSON 파일에 함께 저장됩니다.
 
-Currently, two official plugins are available:
+## 로컬 실행
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
 
-## React Compiler
+`.env.local`에 다음 값을 설정합니다.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `VITE_GOOGLE_CLIENT_ID`: Google OAuth 2.0 웹 클라이언트 ID
+- `VITE_GOOGLE_DRIVE_FILE_ID`: 채널 JSON 파일 ID
+- `VITE_GOOGLE_DRIVE_SCOPE`: 선택값. 고정 ID의 기존 업로드 파일을 Picker 없이 사용하는 기본값은 `https://www.googleapis.com/auth/drive`
 
-## Expanding the Oxlint configuration
+OAuth 웹 클라이언트의 승인된 JavaScript 원본에는 로컬 주소(예: `http://localhost:5173`)와 실제 GitHub Pages 원본을 등록해야 합니다. 액세스 토큰은 로컬스토리지에 저장하지 않고 현재 탭의 메모리에서만 재사용합니다.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+이 OAuth 앱이 생성했거나 Google Picker로 이미 연결한 파일이라면 권한 범위를 `https://www.googleapis.com/auth/drive.file`로 좁힐 수 있습니다. 기존에 사용자가 직접 업로드한 고정 파일은 `drive.file` 범위에서 403이 발생할 수 있습니다.
+
+Drive 파일은 현재 내보내기 형식(`{ "formatVersion": 1, "channels": [...] }`)과 기존 Youflix 배열 형식을 모두 읽습니다. 다음 채널 변경 시 현재 내보내기 형식으로 저장됩니다.
+
+## GitHub Pages 설정
+
+저장소의 `Settings → Secrets and variables → Actions → Variables`에 아래 변수를 등록합니다.
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_DRIVE_FILE_ID`
+- `GOOGLE_DRIVE_SCOPE` (선택)
+
+배포 워크플로가 이 값을 Vite 빌드 환경변수로 전달합니다. OAuth 승인 원본에는 `https://<사용자>.github.io`처럼 경로를 제외한 Pages 원본을 등록합니다.
+
+## 검사
+
+```bash
+node --test
+npm run lint
+npm run build
+```

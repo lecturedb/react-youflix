@@ -147,6 +147,7 @@ function ChannelSaveModal({ onApiKeySaved, onSaveChannel, onClose }) {
   const [selectedResultId, setSelectedResultId] = useState(null)
   const [selectedCategory, setSelectedCategory] = useState('')
   const [channelSaveError, setChannelSaveError] = useState(null)
+  const [isSavingChannel, setIsSavingChannel] = useState(false)
   const apiKeyInputRef = useRef(null)
   const searchPendingRef = useRef(false)
   const searchRequestRef = useRef(0)
@@ -256,7 +257,7 @@ function ChannelSaveModal({ onApiKeySaved, onSaveChannel, onClose }) {
     apiKeyInputRef.current?.focus()
   }
 
-  const handleChannelSave = (event) => {
+  const handleChannelSave = async (event) => {
     event.preventDefault()
 
     if (!selectedResult) {
@@ -269,8 +270,14 @@ function ChannelSaveModal({ onApiKeySaved, onSaveChannel, onClose }) {
       return
     }
 
-    const result = onSaveChannel(selectedResult, selectedCategory)
-    if (!result.ok) setChannelSaveError(result.error)
+    setIsSavingChannel(true)
+    setChannelSaveError(null)
+    try {
+      const result = await onSaveChannel(selectedResult, selectedCategory)
+      if (!result.ok) setChannelSaveError(result.error)
+    } finally {
+      setIsSavingChannel(false)
+    }
   }
 
   return (
@@ -377,11 +384,14 @@ function ChannelSaveModal({ onApiKeySaved, onSaveChannel, onClose }) {
           </div>
 
           <form className="channel-save-row channel-save-row--submit" onSubmit={handleChannelSave}>
-            <button type="submit">이 채널 저장하기</button>
+            <button type="submit" disabled={isSavingChannel}>
+              {isSavingChannel ? 'Drive에 저장 중' : '이 채널 저장하기'}
+            </button>
             <label className="visually-hidden" htmlFor="channel-category">카테고리</label>
             <select
               id="channel-category"
               value={selectedCategory}
+              disabled={isSavingChannel}
               onChange={(event) => {
                 setSelectedCategory(event.target.value)
                 setChannelSaveError(null)
